@@ -8,7 +8,7 @@ from .permissions import IsOwnerOrReadOnly
 from .serializers import BookmarkSerializer, SnippetSerializer, UserSerializer
 
 
-# Create your views here.
+# Views to be added here
 class BookmarkViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows bookmarks to be viewed or edited.

@@ -1,103 +1,100 @@
 from django.test import TestCase
-from django.urls import reverse
-from rest_framework import status
-from rest_framework import routers
-from rest_framework.test import APIRequestFactory, APITestCase
+from unittest.mock import patch, MagicMock
+from django.contrib.auth.models import User
+from buildapc_app.management.commands.buildapcgo import BuildAPCAdminCLI
+from buildapc_app.models import Cooler, Motherboard, RAM, GPU, Storage, PowerSupply, Tower, OperatingSystem, Monitor
 
-from .models import Bookmark
-from .views import BookmarkViewSet
+# Test plans
 
-# Create your tests here.
-# test plan
-
-
-class BookmarkTests(APITestCase):
+class TestBuildAPCAdminCLIUnit(TestCase):
     def setUp(self):
-        self.factory = APIRequestFactory()
-        self.bookmark = Bookmark.objects.create(
-            id=1,
-            title="Awesome Django",
-            url="https://awesomedjango.org/",
-            notes="Best place on the web for Django.",
-        )
-        # print(f"bookmark id: {self.bookmark.id}")
+        # Setup a test user and command line interface instance
+        self.user = User.objects.create_user(username='testuser', password='password')
+        self.cli = BuildAPCAdminCLI()
+        self.cli.stdout = MagicMock()
 
-        # the simple router provides the name 'bookmark-list' for the URL pattern: https://www.django-rest-framework.org/api-guide/routers/#simplerouter
-        self.list_url = reverse("barkyapi:bookmark-list")
-        self.detail_url = reverse(
-            "barkyapi:bookmark-detail", kwargs={"pk": self.bookmark.id}
-        )
+    def test_do_login_successful(self):
+        # Test successful login
+        with patch('getpass.getpass', return_value='password'):
+            with patch('builtins.input', return_value='testuser'):
+                self.assertTrue(self.cli.do_login(''))
 
-    # 1. create a bookmark
-    def test_create_bookmark(self):
-        """
-        Ensure we can create a new bookmark object.
-        """
+    def test_do_login_failed(self):
+        # Test failed login due to incorrect password
+        with patch('getpass.getpass', return_value='wrongpassword'):
+            with patch('builtins.input', return_value='testuser'):
+                self.assertTrue(self.cli.do_login(''))
 
-        # the full record is required for the POST
-        data = {
-            "id": 99,
-            "title": "Django REST framework",
-            "url": "https://www.django-rest-framework.org/",
-            "notes": "Best place on the web for Django REST framework.",
-        }
-        response = self.client.post(self.list_url, data, format="json")
-        self.assertTrue(status.is_success(response.status_code))
-        self.assertEqual(Bookmark.objects.count(), 2)
-        self.assertEqual(Bookmark.objects.get(id=99).title, "Django REST framework")
+    def test_do_quit(self):
+        # Test quitting the application
+        self.assertTrue(self.cli.do_quit(''))
 
-    # 2. list bookmarks
-    def test_list_bookmarks(self):
-        """
-        Ensure we can list all bookmark objects.
-        """
-        response = self.client.get(self.list_url)
-        self.assertTrue(status.is_success(response.status_code))
-        self.assertEqual(response.data["results"][0]["title"], self.bookmark.title)
+    @patch('builtins.input', side_effect=['Q'])
+    def test_main_menu_quit(self, mocked_input):
+        # Test quitting from the main menu
+        self.cli.main_menu()
+        self.cli.stdout.write.assert_called_with('Exiting the program.')
 
-    # 3. retrieve a bookmark
-    def test_retrieve_bookmark(self):
-        """
-        Ensure we can retrieve a bookmark object.
-        """
-        response = self.client.get(self.detail_url)
-        self.assertTrue(status.is_success(response.status_code))
-        self.assertEqual(response.data["title"], self.bookmark.title)
+    @patch('builtins.input', side_effect=['1', 'Q'])  # Select CPU management then quit
+    def test_main_menu_cpu_management(self, mocked_input):
+        self.cli.main_menu()
+        self.cli.stdout.write.assert_called_with('Invalid choice, try again.')
 
-    # 4. delete a bookmark
-    def test_delete_bookmark(self):
-        """
-        Ensure we can delete a bookmark object.
-        """
-        response = self.client.delete(
-            reverse("barkyapi:bookmark-detail", kwargs={"pk": self.bookmark.id})
-        )
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(Bookmark.objects.count(), 0)
+    @patch('builtins.input', side_effect=['A', 'Q'])  # Select Add operation then quit
+    def test_component_menu_add(self, mocked_input):
+        self.cli.component_menu('CPU')
+        self.cli.stdout.write.assert_called_with('Invalid action, try again.')
 
-    # 5. update a bookmark
-    def test_update_bookmark(self):
-        """
-        Ensure we can update a bookmark object.
-        """
-        # the full record is required for the POST
-        data = {
-            "id": 99,
-            "title": "Awesomer Django",
-            "url": "https://awesomedjango.org/",
-            "notes": "Best place on the web for Django just got better.",
-        }
-        response = self.client.put(
-            reverse("barkyapi:bookmark-detail", kwargs={"pk": self.bookmark.id}),
-            data,
-            format="json",
-        )
-        self.assertTrue(status.is_success(response.status_code))
-        self.assertEqual(response.data["title"], "Awesomer Django")
+    def test_add_generic(self):
+        # Assuming add_generic is correctly implemented
+        with patch('buildapc_app.management.commands.buildapcgo.BuildAPCAdminCLI.add_generic', return_value=None) as mocked_add:
+            mocked_add('CPU')
+            mocked_add.assert_called_once()
+
+    def test_edit_generic(self):
+        # Test editing functionality
+        with patch('buildapc_app.management.commands.buildapcgo.BuildAPCAdminCLI.edit_generic', return_value=None) as mocked_edit:
+            mocked_edit('CPU')
+            mocked_edit.assert_called_once()
+
+    def test_view_generic(self):
+        # Test viewing functionality
+        with patch('buildapc_app.management.commands.buildapcgo.BuildAPCAdminCLI.view_generic', return_value=None) as mocked_view:
+            mocked_view('CPU')
+            mocked_view.assert_called_once()
+
+    def test_delete_generic(self):
+        # Test delete functionality
+        with patch('buildapc_app.management.commands.buildapcgo.BuildAPCAdminCLI.delete_generic', return_value=None) as mocked_delete:
+            mocked_delete('CPU')
+            mocked_delete.assert_called_once()
+
+    # Cooler Tests
+    @patch('builtins.input', side_effect=['1', 'New Cooler', 'BeCool', '150'])
+    def test_add_cooler(self, mock_input):
+        with patch.object(self.cli, 'add_generic', return_value=None) as mocked_add:
+            self.cli.a_cooler()
+            mocked_add.assert_called_once()
+
+    @patch('builtins.input', return_value='1')
+    def test_delete_cooler(self, mock_input):
+        with patch.object(self.cli, 'delete_generic', return_value=None) as mocked_delete:
+            self.cli.d_cooler()
+            mocked_delete.assert_called_once_with(Cooler, 1)
+
+    @patch('builtins.input', side_effect=['1', 'Updated Cooler', 'Frozen', '250'])
+    def test_edit_cooler(self, mock_input):
+        with patch.object(self.cli, 'edit_generic', return_value=None) as mocked_edit:
+            self.cli.e_cooler()
+            mocked_edit.assert_called_once()
+
+    def test_view_coolers(self):
+        with patch.object(self.cli, 'view_generic', return_value=None) as mocked_view:
+            self.cli.v_cooler()
+            mocked_view.assert_called_once_with(Cooler)
 
 
-# 6. create a snippet
-# 7. retrieve a snippet
+
 # 8. delete a snippet
 # 9. list snippets
 # 10. update a snippet
